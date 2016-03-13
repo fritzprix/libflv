@@ -13,6 +13,10 @@
 #include <string>
 #include <winsock2.h>
 
+#define TAG_TYPE_AUDIO			((uint8_t) 8)
+#define TAG_TYPE_VIDEO			((uint8_t) 9)
+#define TAG_TYPE_SCRIPT			((uint8_t) 18)
+
 
 class FLVStream {
 public:
@@ -57,7 +61,7 @@ private:
 };
 
 class FLVParser {
-	typedef void (*callback)(uint8_t type,void* data, size_t sz);
+	typedef void (*callback)(uint8_t type,void* data, size_t sz, uint32_t pts);
 public:
 	FLVParser(FLVStream* stream,size_t bsz);
 	~FLVParser();

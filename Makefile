@@ -1,6 +1,7 @@
 DBG_CXXFLAGS :=	-O0 -g3 -Wall -fmessage-length=0 -D__DBG
-REL_CXXFLAGS :=  -O2 -g0 -Wall -fmessage-lenght=0
-DYN_FLAGS := -shared --pic
+REL_CXXFLAGS :=  -O2 -g0 -Wall -fmessage-length=0
+DYN_FLAGS := 
+#-shared -fPIC
 AR := ar
 
 DBG_OBJS :=		libflv.do
@@ -8,7 +9,7 @@ REL_OBJS := 		libflv.o
 
 UTEST := 	test
 
-LIBS = -lws2_32
+LIBS = -L$(CURDIR) -lws2_32 -l:srs_librtmpd.a
 
 DBG_DYNAMIC_TARGET :=	libflvd.so
 DBG_STATIC_TARGET := 	libflvd.a

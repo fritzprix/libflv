@@ -28,7 +28,7 @@
 
 typedef struct {
 	uint8_t _[3];
-} uint24_t;
+}__attribute__((packed)) uint24_t;
 
 
 typedef struct flv_header {
@@ -54,8 +54,10 @@ const char FLV_SIG[] = {
 };
 
 
-FLVStream::FLVStream() { }
+static uint32_t __bswap_u24_to_u32(uint24_t* u24);
+static uint32_t __bswap_u32(uint32_t );
 
+FLVStream::FLVStream() { }
 FLVStream::~FLVStream() { }
 
 
@@ -247,6 +249,9 @@ FLVParser::~FLVParser()
 int FLVParser::parse(callback cb, bool is_realtime)
 {
 	flv_header_t* header;
+	flv_tag_t* flvTag;
+	uint32_t prev_sz,lsz;
+	lsz = 0;
 	if(flvstream->open())
 	{
 		perror("Fail to open flv stream! \n");
@@ -254,7 +259,9 @@ int FLVParser::parse(callback cb, bool is_realtime)
 	}
 	flvstream->read((char*) parse_buffer, sizeof(flv_header_t));
 	header = (flv_header_t*) parse_buffer;
-	if(!memcmp(header->sig , FLV_SIG, sizeof(FLV_SIG)))
+	// read first size of previous tag which is always zero
+	flvstream->read((char*) &prev_sz, sizeof(uint32_t));
+	if(!memcmp(header->sig , FLV_SIG, sizeof(FLV_SIG)) && (prev_sz == 0))
 	{
 		__LOG("Valid FLV Header!\n");
 	}
@@ -263,9 +270,30 @@ int FLVParser::parse(callback cb, bool is_realtime)
 		perror("Invalid FLV stream! \n");
 		return -1;
 	}
+	__LOG("sizeof flvtag :%d\n",sizeof(flv_tag_t));
 	__LOG("Version : %d\n",header->ver);
 	__LOG("Has Video Track : %d\n",(header->flag & FLV_HEADER_FLAG_HAS_VIDEO)? 1 : 0);
 	__LOG("Has Audio Track : %d\n",(header->flag & FLV_HEADER_FLAG_HAS_AUDIO)? 1 : 0);
+
+
+	prev_sz = __bswap_u32(sizeof(flv_tag_t));
+	do
+	{
+		prev_sz = __bswap_u32(prev_sz);
+		if((lsz + sizeof(flv_tag_t)) != prev_sz)
+		{
+			perror("Corruption Detected in FLV Tag !!\n");
+			exit(-1);
+		}
+		flvstream->read((char*) parse_buffer, sizeof(flv_tag_t));
+		flvTag = (flv_tag_t*) parse_buffer;
+		lsz = __bswap_u24_to_u32(&flvTag->size);
+		flvstream->read((char*) &flvTag[1],lsz);
+		if(cb)
+		{
+			(*cb)(flvTag->type, flvTag, lsz, __bswap_u24_to_u32(&flvTag->time_stm) | flvTag->time_stm_ex << 24);
+		}
+	}while(flvstream->read((char*) &prev_sz, sizeof(uint32_t)) > 0);
 
 	if(flvstream->close())
 	{
@@ -274,3 +302,14 @@ int FLVParser::parse(callback cb, bool is_realtime)
 	}
 	return EXIT_SUCCESS;
 }
+
+static uint32_t __bswap_u24_to_u32(uint24_t* u24)
+{
+	return ((u24->_[0] << 16) | (u24->_[1] << 8) | (u24->_[2]));
+}
+
+static uint32_t __bswap_u32(uint32_t v)
+{
+	return (((v & 0xFF000000) >> 24) | ((v & 0xFF0000) >> 8) | ((v & 0xFF00) << 8) | ((v & 0xFF) << 24));
+}
+

@@ -255,7 +255,8 @@ int FLVParser::parse(callback cb, bool is_realtime)
 	flv_header_t* header;
 	flv_tag_t* flvTag;
 	uint32_t prev_sz,lsz;
-	uint64_t last_pts = 0, cur_pts = 0;
+	int last_pts = 0, cur_pts = 0;
+	int delta_pts = 0;
 
 	lsz = 0;
 	if(flvstream->open())
@@ -298,12 +299,17 @@ int FLVParser::parse(callback cb, bool is_realtime)
 		cur_pts = __bswap_u24_to_u32(&flvTag->time_stm) | (flvTag->time_stm_ex << 24);
 		if(is_realtime)
 		{
-			::usleep((cur_pts - last_pts) * 1000);
+			delta_pts = cur_pts - last_pts;
+			__LOG("will sleep : %d\n",delta_pts);
+			if(delta_pts > 0)
+			{
+				::usleep((cur_pts - last_pts) * 1000);
+			}
 		}
 		last_pts = cur_pts;
 		if(cb)
 		{
-			(*cb)(flvTag->type, flvTag, lsz, __bswap_u24_to_u32(&flvTag->time_stm) | flvTag->time_stm_ex << 24);
+			(*cb)(flvTag->type, &flvTag[1], lsz, __bswap_u24_to_u32(&flvTag->time_stm) | flvTag->time_stm_ex << 24);
 		}
 	}while(flvstream->read((char*) &prev_sz, sizeof(uint32_t)) > 0);
 

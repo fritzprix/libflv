@@ -10,12 +10,18 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 #include <string>
-#include <winsock2.h>
+
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netdb.h>
+#include <arpa/inet.h>
 
 #define TAG_TYPE_AUDIO			((uint8_t) 8)
 #define TAG_TYPE_VIDEO			((uint8_t) 9)
 #define TAG_TYPE_SCRIPT			((uint8_t) 18)
+
 
 
 class FLVStream {
@@ -58,6 +64,14 @@ private:
 	bool is_server;
 	int sfd;
 	int clisfd;
+};
+
+class FLVWriter {
+public:
+	FLVWriter(FLVStream* stream, size_t bsz);
+	~FLVWriter();
+	int writeEncodedVideo();
+	int writeEncdoedAudio();
 };
 
 class FLVParser {

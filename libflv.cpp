@@ -10,7 +10,9 @@
 #include "libflv.hpp"
 
 
-#include <winsock2.h>
+
+#include <sys/types.h>
+#include <sys/socket.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +21,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string>
+#include <string.h>
+#include <time.h>
 
 #ifdef __DBG
 #define __LOG(...)		::printf(__VA_ARGS__)
@@ -88,7 +92,7 @@ int FLVFileStream::open()
 		return EXIT_FAILURE;
 	}
 
-	fd = ::open(filename->c_str(), O_BINARY | O_RDWR);
+	fd = ::open(filename->c_str(), O_RDWR);
 	if(fd < 0)
 	{
 		perror("File Not Found \n");
@@ -161,7 +165,7 @@ int FLVSocketStream::open()
 			exit(result);
 		}
 		::listen(sfd,0);
-		int client_addrlen = sizeof(sockaddr);
+		socklen_t client_addrlen = sizeof(sockaddr);
 		clisfd  = ::accept(sfd, (sockaddr*) client_address, &client_addrlen);
 		if(clisfd < 0)
 		{
@@ -251,6 +255,8 @@ int FLVParser::parse(callback cb, bool is_realtime)
 	flv_header_t* header;
 	flv_tag_t* flvTag;
 	uint32_t prev_sz,lsz;
+	uint64_t last_pts = 0, cur_pts = 0;
+
 	lsz = 0;
 	if(flvstream->open())
 	{
@@ -270,7 +276,7 @@ int FLVParser::parse(callback cb, bool is_realtime)
 		perror("Invalid FLV stream! \n");
 		return -1;
 	}
-	__LOG("sizeof flvtag :%d\n",sizeof(flv_tag_t));
+	__LOG("sizeof flvtag :%ld\n",sizeof(flv_tag_t));
 	__LOG("Version : %d\n",header->ver);
 	__LOG("Has Video Track : %d\n",(header->flag & FLV_HEADER_FLAG_HAS_VIDEO)? 1 : 0);
 	__LOG("Has Audio Track : %d\n",(header->flag & FLV_HEADER_FLAG_HAS_AUDIO)? 1 : 0);
@@ -289,6 +295,12 @@ int FLVParser::parse(callback cb, bool is_realtime)
 		flvTag = (flv_tag_t*) parse_buffer;
 		lsz = __bswap_u24_to_u32(&flvTag->size);
 		flvstream->read((char*) &flvTag[1],lsz);
+		cur_pts = __bswap_u24_to_u32(&flvTag->time_stm) | (flvTag->time_stm_ex << 24);
+		if(is_realtime)
+		{
+			::usleep((cur_pts - last_pts) * 1000);
+		}
+		last_pts = cur_pts;
 		if(cb)
 		{
 			(*cb)(flvTag->type, flvTag, lsz, __bswap_u24_to_u32(&flvTag->time_stm) | flvTag->time_stm_ex << 24);
